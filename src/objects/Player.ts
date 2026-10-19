@@ -36,11 +36,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     };
   }
 
-  /** Small upward bounce, e.g. after stomping an enemy. */
-  bounce() {
-    this.body.setVelocityY(-220);
-  }
-
   update(time: number) {
     if (this.frozen) return;
 

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { createAnimations, createTextures } from '../art/textures';
+import { PIKACHU_MAX_HP } from '../battle/moves';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -9,7 +10,7 @@ export class BootScene extends Phaser.Scene {
   create() {
     createTextures(this);
     createAnimations(this);
-    this.registry.set({ score: 0, balls: 0, lives: 3 });
+    this.registry.set({ score: 0, balls: 0, lives: 3, hp: PIKACHU_MAX_HP });
     this.scene.start('Game');
   }
 }

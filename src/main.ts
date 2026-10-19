@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { BattleScene } from './scenes/BattleScene';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { VIEW_HEIGHT, VIEW_WIDTH } from './config';
@@ -18,7 +19,7 @@ const game = new Phaser.Game({
     default: 'arcade',
     arcade: { gravity: { x: 0, y: 900 }, debug: false },
   },
-  scene: [BootScene, GameScene],
+  scene: [BootScene, GameScene, BattleScene],
 });
 
 // Handy for poking at the game from the browser console while developing.

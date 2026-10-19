@@ -21,6 +21,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.body.setVelocityX(-WALK_SPEED);
   }
 
+  /** Walk in the direction away from x (used after Pikachu runs from a battle). */
+  walkAwayFrom(x: number) {
+    this.awake = true;
+    this.body.setVelocityX(this.x < x ? -WALK_SPEED : WALK_SPEED);
+  }
+
   update() {
     if (!this.awake || !this.body.enable) return;
     // Turn around on bumping into a wall. Sprite faces left by default.

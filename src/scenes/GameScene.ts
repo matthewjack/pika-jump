@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
 import { TILE, VIEW_WIDTH } from '../config';
+import { PIKACHU_MAX_HP } from '../battle/moves';
 import { LEVEL_1 } from '../levels/level1';
 import { Enemy } from '../objects/Enemy';
 import { Player } from '../objects/Player';
+import type { BattleData, BattleResult } from './BattleScene';
 
 type Image = Phaser.Physics.Arcade.Image;
 
@@ -16,7 +18,8 @@ export class GameScene extends Phaser.Scene {
   private worldWidth = 0;
   private worldHeight = 0;
   private headHits: Image[] = [];
-  private state: 'playing' | 'dying' | 'won' = 'playing';
+  private state: 'playing' | 'battle' | 'dying' | 'won' = 'playing';
+  private ranFrom: Enemy | null = null;
 
   constructor() {
     super('Game');
@@ -25,6 +28,7 @@ export class GameScene extends Phaser.Scene {
   create() {
     this.state = 'playing';
     this.headHits = [];
+    this.ranFrom = null;
 
     const rows = LEVEL_1;
     this.worldWidth = Math.max(...rows.map((r) => r.length)) * TILE;
@@ -106,6 +110,7 @@ export class GameScene extends Phaser.Scene {
       this.player.update(time);
       this.handleHeadHits();
       if (this.player.y > this.worldHeight + 16) this.die(false);
+      if (this.ranFrom && !this.physics.overlap(this.player, this.ranFrom)) this.ranFrom = null;
     }
 
     const wakeLine = this.cameras.main.scrollX + VIEW_WIDTH + TILE;
@@ -168,21 +173,49 @@ export class GameScene extends Phaser.Scene {
     this.addBalls(1);
   }
 
+  /** Each Poké Ball also heals Pikachu by 1 HP. */
   private addBalls(n: number) {
     this.registry.inc('balls', n);
+    this.registry.set('hp', Math.min(PIKACHU_MAX_HP, this.registry.get('hp') + n));
     this.registry.inc('score', 10 * n);
     this.refreshHud();
   }
 
   private touchEnemy(enemy: Enemy) {
-    if (this.state !== 'playing' || !enemy.body.enable) return;
-    const p = this.player.body;
-    const stomping = p.velocity.y > 0 && p.bottom - enemy.body.top < 8;
-    if (stomping) {
+    if (this.state !== 'playing' || !enemy.body.enable || enemy === this.ranFrom) return;
+    this.startBattle(enemy);
+  }
+
+  /** Bumping into a Rattata starts a Pokémon battle. Jump over it to avoid one! */
+  private startBattle(enemy: Enemy) {
+    this.state = 'battle';
+    this.physics.pause();
+    this.player.anims.stop();
+    this.cameras.main.flash(300, 255, 255, 255);
+
+    const data: BattleData = { onEnd: (result) => this.endBattle(enemy, result) };
+    this.time.delayedCall(300, () => {
+      this.scene.pause();
+      this.scene.launch('Battle', data);
+    });
+  }
+
+  private endBattle(enemy: Enemy, result: BattleResult) {
+    this.scene.resume();
+    this.input.keyboard!.resetKeys();
+    this.physics.resume();
+    this.state = 'playing';
+    this.refreshHud();
+
+    if (result === 'won') {
       enemy.squash();
-      this.player.bounce();
       this.registry.inc('score', 100);
       this.refreshHud();
+    } else if (result === 'ran') {
+      // The Rattata wanders off, and won't battle again until you've separated.
+      this.ranFrom = enemy;
+      enemy.walkAwayFrom(this.player.x);
+      this.tweens.add({ targets: this.player, alpha: 0.3, duration: 100, yoyo: true, repeat: 9 });
     } else {
       this.die(true);
     }
@@ -192,6 +225,7 @@ export class GameScene extends Phaser.Scene {
     this.state = 'dying';
     this.player.frozen = true;
     this.registry.inc('lives', -1);
+    this.registry.set('hp', PIKACHU_MAX_HP);
     this.refreshHud();
 
     const body = this.player.body;
@@ -229,7 +263,7 @@ export class GameScene extends Phaser.Scene {
     this.add.text(cx, 110, subtitle, { ...style, fontSize: '10px' }).setOrigin(0.5).setScrollFactor(0).setDepth(100);
 
     this.input.keyboard!.once('keydown-SPACE', () => {
-      this.registry.set({ score: 0, balls: 0, lives: 3 });
+      this.registry.set({ score: 0, balls: 0, lives: 3, hp: PIKACHU_MAX_HP });
       this.scene.restart();
     });
   }
@@ -237,6 +271,7 @@ export class GameScene extends Phaser.Scene {
   private refreshHud() {
     const score = String(this.registry.get('score')).padStart(6, '0');
     const balls = String(this.registry.get('balls')).padStart(2, '0');
-    this.hud.setText(`SCORE ${score}    POKE BALLS x${balls}    LIVES ${this.registry.get('lives')}`);
+    const hp = `${this.registry.get('hp')}/${PIKACHU_MAX_HP}`;
+    this.hud.setText(`SCORE ${score}   POKE BALLS x${balls}   HP ${hp}   LIVES ${this.registry.get('lives')}`);
   }
 }
