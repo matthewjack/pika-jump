@@ -27,6 +27,8 @@ Run through the forest, collect Poké Balls, bonk the Poké Ball blocks from und
 - **POKEMON**: switch to another team member.
 - **RUN**: get away.
 
+**Levels and evolution:** winning a battle (or catching a Pokémon) gives XP to the Pokémon that fought. Every 25 XP it goes up a level, with more HP and stronger attacks. At certain levels Pokémon evolve: Pikachu → Raichu (Lv10), Caterpie → Metapod (Lv7) → Butterfree (Lv9), and Rattata, Pidgey, Bulbasaur, Charmander and Squirtle evolve at Lv9. Wild Pokémon get stronger further into the level.
+
 HP carries over between battles, and each Poké Ball you collect heals your current Pokémon by 1. If a Pokémon faints you choose the next one. If your whole team faints you lose a life, and everyone is healed.
 
 ## Where things live
@@ -38,7 +40,7 @@ HP carries over between battles, and each Poké Ball you collect heals your curr
 | `src/art/textures.ts` | Turns the pixel art into textures, and draws tiles, trees, bushes and the flag. |
 | `src/objects/Player.ts` | Movement and jump feel. The constants at the top tune speed and jump height. |
 | `src/objects/Enemy.ts` | Wild Pokémon walking (or flying) around. |
-| `src/pokemon/species.ts` | Every Pokémon's HP, moves, damage and accuracy, plus the catch chance. Easy to tweak or add moves. |
+| `src/pokemon/species.ts` | Every Pokémon's HP, moves, damage, accuracy and evolution level, plus the catch chance and XP rules. Easy to tweak or add moves. |
 | `src/pokemon/team.ts` | Your team of caught Pokémon. |
 | `src/scenes/BattleScene.ts` | The battle screen: fighting, catching and switching. |
 | `src/scenes/GameScene.ts` | Builds the level, plus collisions, scoring, starting battles, dying and winning. |
@@ -53,4 +55,4 @@ preload() {
 }
 ```
 
-Keep the same texture keys (`pikachu`, `rattata`, `pidgey`, `caterpie`, `bulbasaur`, `charmander`, `squirtle`, `pokeball`). The walk animation uses frames 0 and 1, and the jump uses frame 2. Frames should be 16×16.
+Keep the same texture keys (the Pokémon ids in `species.ts`, like `pikachu` or `charmeleon`, plus `pokeball`). The walk animation uses frames 0 and 1, and the jump uses frame 2. Frames should be 16×16.

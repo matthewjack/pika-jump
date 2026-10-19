@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
 import { VIEW_HEIGHT, VIEW_WIDTH } from '../config';
-import { CATCH_CHANCE, type Move, SPECIES, type SpeciesId } from '../pokemon/species';
+import { CATCH_CHANCE, damageAt, maxHpAt, type Move, SPECIES, type SpeciesId, XP_PER_LEVEL, xpForWin } from '../pokemon/species';
 import { getActiveIndex, getTeam, saveTeam, setActiveIndex, teamIsFull, type TeamMember } from '../pokemon/team';
 
 export type BattleResult = 'won' | 'caught' | 'ran' | 'fainted';
 
 export interface BattleData {
   species: SpeciesId;
+  level: number;
   onEnd: (result: BattleResult) => void;
 }
 
@@ -27,12 +28,15 @@ const BAR_WIDTH = 100;
 /** One side of the fight: a sprite plus its name and HP bar. */
 interface Fighter {
   species: SpeciesId;
+  level: number;
   hp: number;
   maxHp: number;
   sprite: Phaser.GameObjects.Sprite;
   nameText: Phaser.GameObjects.Text;
   bar: Phaser.GameObjects.Rectangle;
   hpText: Phaser.GameObjects.Text;
+  /** Only your own Pokémon shows an XP bar. */
+  xpBar?: Phaser.GameObjects.Rectangle;
 }
 
 interface MenuOptions {
@@ -77,11 +81,11 @@ export class BattleScene extends Phaser.Scene {
     this.add.ellipse(WILD_X, WILD_Y, 130, 26, 0xb8d890);
     this.add.ellipse(MINE_X, MINE_Y + 2, 150, 28, 0xb8d890);
 
-    const wildSpecies = SPECIES[this.battleData.species];
-    this.wild = this.makeFighter(this.battleData.species, wildSpecies.maxHp, WILD_X, WILD_Y, 14, 14);
-    this.wild.sprite.setFlipX(true).anims.play(`${this.battleData.species}-walk`);
+    const { species, level } = this.battleData;
+    this.wild = this.makeFighter(species, level, maxHpAt(species, level), WILD_X, WILD_Y, 14, 14);
+    this.wild.sprite.setFlipX(true).anims.play(`${species}-walk`);
     const active = this.team[this.activeIndex];
-    this.mine = this.makeFighter(active.species, active.hp, MINE_X, MINE_Y, 236, 112);
+    this.mine = this.makeFighter(active.species, active.level, active.hp, MINE_X, MINE_Y, 236, 112, true);
 
     // Message box along the bottom
     this.add.rectangle(4, BOX_Y + 2, VIEW_WIDTH - 8, VIEW_HEIGHT - BOX_Y - 6, 0xffffff).setOrigin(0).setStrokeStyle(3, 0x485890);
@@ -93,7 +97,7 @@ export class BattleScene extends Phaser.Scene {
     void this.run();
   }
 
-  private makeFighter(species: SpeciesId, hp: number, x: number, y: number, boxX: number, boxY: number): Fighter {
+  private makeFighter(species: SpeciesId, level: number, hp: number, x: number, y: number, boxX: number, boxY: number, showXp = false): Fighter {
     const sprite = this.add.sprite(x, y, species, 0).setOrigin(0.5, 1).setScale(4);
     this.add.rectangle(boxX, boxY, 150, 42, 0xf8f8f0).setOrigin(0).setStrokeStyle(2, 0x404040);
     const nameText = this.add.text(boxX + 8, boxY + 4, '', { ...TEXT, fontSize: '11px', fontStyle: 'bold' });
@@ -101,20 +105,28 @@ export class BattleScene extends Phaser.Scene {
     this.add.rectangle(boxX + 24, boxY + 21, BAR_WIDTH + 4, 9, 0x404040).setOrigin(0);
     const bar = this.add.rectangle(boxX + 26, boxY + 23, BAR_WIDTH, 5, 0x40c040).setOrigin(0);
     const hpText = this.add.text(boxX + 142, boxY + 30, '', { ...TEXT, fontSize: '9px' }).setOrigin(1, 0);
+    let xpBar: Phaser.GameObjects.Rectangle | undefined;
+    if (showXp) {
+      this.add.text(boxX + 8, boxY + 31, 'XP', { ...TEXT, fontSize: '8px', color: '#3870d0', fontStyle: 'bold' });
+      this.add.rectangle(boxX + 24, boxY + 34, BAR_WIDTH * 0.6, 3, 0xd0d0d0).setOrigin(0);
+      xpBar = this.add.rectangle(boxX + 24, boxY + 34, 0, 3, 0x3870d0).setOrigin(0);
+    }
 
-    const fighter: Fighter = { species, hp, maxHp: SPECIES[species].maxHp, sprite, nameText, bar, hpText };
-    this.showFighter(fighter, species, hp);
+    const fighter: Fighter = { species, level, hp, maxHp: 0, sprite, nameText, bar, hpText, xpBar };
+    this.showFighter(fighter, species, level, hp);
     return fighter;
   }
 
   /** Puts a (possibly different) Pokémon into a fighter slot. */
-  private showFighter(fighter: Fighter, species: SpeciesId, hp: number) {
+  private showFighter(fighter: Fighter, species: SpeciesId, level: number, hp: number) {
     fighter.species = species;
+    fighter.level = level;
     fighter.hp = hp;
-    fighter.maxHp = SPECIES[species].maxHp;
+    fighter.maxHp = maxHpAt(species, level);
     fighter.sprite.setTexture(species, 0);
-    fighter.nameText.setText(SPECIES[species].name);
+    fighter.nameText.setText(`${SPECIES[species].name} Lv${level}`);
     this.drawHp(fighter, false);
+    if (fighter.xpBar) fighter.xpBar.width = (BAR_WIDTH * 0.6 * this.team[this.activeIndex].xp) / XP_PER_LEVEL;
   }
 
   private nameOf(fighter: Fighter) {
@@ -137,7 +149,10 @@ export class BattleScene extends Phaser.Scene {
       }
       if (action.kind === 'ball') {
         const outcome = await this.throwBall();
-        if (outcome === 'caught') return this.finish('caught');
+        if (outcome === 'caught') {
+          await this.gainXp(xpForWin(this.wild.level));
+          return this.finish('caught');
+        }
         if (outcome === 'no-throw') continue;
       }
       if (action.kind === 'switch') {
@@ -148,6 +163,7 @@ export class BattleScene extends Phaser.Scene {
         if (this.wild.hp <= 0) {
           await this.faint(this.wild);
           await this.say(`${this.nameOf(this.wild)} fainted!`);
+          await this.gainXp(xpForWin(this.wild.level));
           return this.finish('won');
         }
       }
@@ -173,7 +189,7 @@ export class BattleScene extends Phaser.Scene {
       if (pick === 0) {
         this.message.setText('');
         const moves = SPECIES[this.mine.species].moves;
-        const labels = [...moves.map((m) => `${m.name} (${m.damage})`), 'BACK'];
+        const labels = [...moves.map((m) => `${m.name} (${damageAt(m, this.mine.level)})`), 'BACK'];
         const choice = await this.menu(labels, { columns: 2, x: 20, y: BOX_Y + 12, colWidth: 190 });
         if (choice < moves.length) return { kind: 'move', move: moves[choice] };
       } else if (pick === 1) {
@@ -196,10 +212,11 @@ export class BattleScene extends Phaser.Scene {
     }
 
     await this.playEffect(move, attacker, target);
-    target.hp = Math.max(0, target.hp - move.damage);
+    const damage = damageAt(move, attacker.level);
+    target.hp = Math.max(0, target.hp - damage);
     if (target === this.mine) this.saveMyHp();
     await this.drawHp(target, true);
-    await this.say(`It did ${move.damage} damage!`);
+    await this.say(`It did ${damage} damage!`);
   }
 
   private saveMyHp() {
@@ -217,7 +234,7 @@ export class BattleScene extends Phaser.Scene {
     this.activeIndex = index;
     setActiveIndex(this.registry, index);
     const member = this.team[index];
-    this.showFighter(this.mine, member.species, member.hp);
+    this.showFighter(this.mine, member.species, member.level, member.hp);
     sprite.setScale(0).setAlpha(1).setY(MINE_Y);
     await this.tween({ targets: sprite, scale: 4, duration: 250, ease: 'Back.easeOut' });
     await this.say(`Go! ${this.nameOf(this.mine)}!`);
@@ -264,7 +281,7 @@ export class BattleScene extends Phaser.Scene {
     if (caught) {
       this.sparkle(ball.x, ball.y);
       await this.say(`Gotcha! ${name} was caught!`);
-      this.team.push({ species: this.wild.species, hp: Math.max(1, this.wild.hp) });
+      this.team.push({ species: this.wild.species, level: this.wild.level, xp: 0, hp: Math.max(1, this.wild.hp) });
       saveTeam(this.registry, this.team);
       await this.say(`${name} joined your team!`);
       return 'caught';
@@ -276,6 +293,61 @@ export class BattleScene extends Phaser.Scene {
     await this.tween({ targets: target, scale: 4, alpha: 1, duration: 200 });
     await this.say(`Oh no! ${name} broke free!`);
     return 'broke-free';
+  }
+
+  // ---------- Levelling up and evolving ----------
+
+  /** Gives XP to the Pokémon in battle, levelling up (and evolving) as needed. */
+  private async gainXp(amount: number) {
+    const member = this.team[this.activeIndex];
+    await this.say(`${this.nameOf(this.mine)} gained ${amount} XP!`);
+    member.xp += amount;
+    await this.animateXpBar(member.xp);
+
+    while (member.xp >= XP_PER_LEVEL) {
+      member.xp -= XP_PER_LEVEL;
+      member.level++;
+      member.hp += 2; // levelling up adds 2 max HP — and heals that much
+      saveTeam(this.registry, this.team);
+      this.showFighter(this.mine, member.species, member.level, member.hp);
+      this.sparkle(this.mine.sprite.x, this.mine.sprite.y - 32);
+      await this.say(`${this.nameOf(this.mine)} grew to level ${member.level}!`);
+
+      const evolution = SPECIES[member.species].evolvesTo;
+      if (evolution && member.level >= evolution.level) await this.evolve(member, evolution.species);
+      await this.animateXpBar(member.xp);
+    }
+    saveTeam(this.registry, this.team);
+  }
+
+  private animateXpBar(xp: number) {
+    const bar = this.mine.xpBar;
+    if (!bar) return Promise.resolve();
+    return this.tween({ targets: bar, width: (BAR_WIDTH * 0.6 * Math.min(xp, XP_PER_LEVEL)) / XP_PER_LEVEL, duration: 400 });
+  }
+
+  /** The classic evolution: the sprite flickers between old and new, faster and faster. */
+  private async evolve(member: TeamMember, into: SpeciesId) {
+    const oldName = SPECIES[member.species].name;
+    const oldMax = maxHpAt(member.species, member.level);
+    await this.say(`What? ${oldName} is evolving!`);
+
+    const sprite = this.mine.sprite;
+    const from = member.species;
+    for (let i = 0, delay = 320; i < 14; i++, delay = Math.max(50, delay * 0.8)) {
+      sprite.setTexture(i % 2 ? from : into, 0);
+      await this.tween({ targets: sprite, scale: 4.4, duration: delay / 2, yoyo: true });
+    }
+    sprite.setTexture(into, 0);
+    this.cameras.main.flash(400, 255, 255, 255);
+    this.sparkle(sprite.x, sprite.y - 32);
+
+    // Keep the same amount of damage taken, but with the bigger HP of the new form.
+    member.species = into;
+    member.hp = Math.max(1, maxHpAt(into, member.level) - (oldMax - member.hp));
+    saveTeam(this.registry, this.team);
+    this.showFighter(this.mine, member.species, member.level, member.hp);
+    await this.say(`Congratulations! ${oldName} evolved into ${SPECIES[into].name}!`, 600);
   }
 
   private finish(result: BattleResult) {
@@ -325,6 +397,10 @@ export class BattleScene extends Phaser.Scene {
         break;
       case 'bug':
         await this.projectiles(from, to, [0xa8d040, 0xffffff], 5, 3);
+        break;
+      case 'psychic':
+        await this.projectiles(from, to, [0xc060e0, 0xf0a0f8], 7, 5);
+        this.cameras.main.shake(150, 0.006);
         break;
       case 'dash':
         await this.tween({ targets: attacker.sprite, x: attacker.sprite.x + lunge * 4, duration: 90, yoyo: true });
@@ -412,9 +488,10 @@ export class BattleScene extends Phaser.Scene {
     const labels: string[] = [];
     const disabled: boolean[] = [];
     this.team.forEach((member, i) => {
-      const species = SPECIES[member.species];
+      const name = SPECIES[member.species].name;
       const status = member.hp <= 0 ? 'FAINTED' : i === this.activeIndex ? 'IN BATTLE' : '';
-      labels.push(`${species.name.padEnd(11)} HP ${String(member.hp).padStart(2)}/${species.maxHp}  ${status}`);
+      const hp = `${String(member.hp).padStart(2)}/${maxHpAt(member.species, member.level)}`;
+      labels.push(`${name.padEnd(10)} Lv${String(member.level).padEnd(2)}  HP ${hp}  ${status}`);
       disabled.push(member.hp <= 0 || i === this.activeIndex);
       panel.add(this.add.image(36, 38 + i * 26, member.species, 0).setAlpha(member.hp > 0 ? 1 : 0.4));
     });

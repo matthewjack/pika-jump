@@ -3,8 +3,8 @@ import { TILE, VIEW_WIDTH } from '../config';
 import { LEVEL_1 } from '../levels/level1';
 import { Enemy } from '../objects/Enemy';
 import { Player } from '../objects/Player';
-import { RANDOM_WILD, SPECIES, type SpeciesId } from '../pokemon/species';
-import { getActive, getActiveIndex, getTeam, healActive, healAll, setActiveIndex } from '../pokemon/team';
+import { RANDOM_WILD, SPECIES, type SpeciesId, XP_PER_LEVEL } from '../pokemon/species';
+import { getActive, getActiveIndex, getTeam, healActive, healAll, maxHpOf, setActiveIndex } from '../pokemon/team';
 import type { BattleData, BattleResult } from './BattleScene';
 
 type Image = Phaser.Physics.Arcade.Image;
@@ -33,6 +33,8 @@ export class GameScene extends Phaser.Scene {
   private headHits: Image[] = [];
   private state: 'playing' | 'battle' | 'dying' | 'won' = 'playing';
   private ranFrom: Enemy | null = null;
+  /** After a battle, a moment where other wild Pokémon can't start a new one. */
+  private safeUntil = 0;
 
   constructor() {
     super('Game');
@@ -42,6 +44,7 @@ export class GameScene extends Phaser.Scene {
     this.state = 'playing';
     this.headHits = [];
     this.ranFrom = null;
+    this.safeUntil = 0;
 
     const rows = LEVEL_1;
     this.worldWidth = Math.max(...rows.map((r) => r.length)) * TILE;
@@ -136,8 +139,10 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Wild Pokémon get stronger further into the level: level 3 at the start, up to 6 near the end. */
   private spawnWild(species: SpeciesId, x: number, y: number) {
-    const enemy = new Enemy(this, x, y, species).setDepth(5);
+    const level = Math.min(6, 3 + Math.floor(x / TILE / 40));
+    const enemy = new Enemy(this, x, y, species, level).setDepth(5);
     this.enemies.add(enemy);
     enemy.setup();
   }
@@ -236,7 +241,7 @@ export class GameScene extends Phaser.Scene {
   // ---------- Battles ----------
 
   private touchEnemy(enemy: Enemy) {
-    if (this.state !== 'playing' || !enemy.body.enable || enemy === this.ranFrom) return;
+    if (this.state !== 'playing' || !enemy.body.enable || enemy === this.ranFrom || this.time.now < this.safeUntil) return;
     this.startBattle(enemy);
   }
 
@@ -247,7 +252,7 @@ export class GameScene extends Phaser.Scene {
     this.player.anims.stop();
     this.cameras.main.flash(300, 255, 255, 255);
 
-    const data: BattleData = { species: enemy.species, onEnd: (result) => this.endBattle(enemy, result) };
+    const data: BattleData = { species: enemy.species, level: enemy.level, onEnd: (result) => this.endBattle(enemy, result) };
     this.time.delayedCall(300, () => {
       this.scene.pause();
       this.scene.launch('Battle', data);
@@ -262,12 +267,12 @@ export class GameScene extends Phaser.Scene {
     // You might have switched Pokémon during the battle.
     this.player.setSpecies(getActive(this.registry).species);
 
-    if (result === 'won') {
-      enemy.faint();
-      this.registry.inc('score', 100);
-    } else if (result === 'caught') {
-      enemy.destroy();
-      this.registry.inc('score', 200);
+    if (result === 'won' || result === 'caught') {
+      if (result === 'won') enemy.faint();
+      else enemy.destroy();
+      this.registry.inc('score', result === 'won' ? 100 : 200);
+      this.safeUntil = this.time.now + 1200;
+      this.tweens.add({ targets: this.player, alpha: 0.3, duration: 100, yoyo: true, repeat: 5 });
     } else if (result === 'ran') {
       // The wild Pokémon wanders off, and won't battle again until you've separated.
       this.ranFrom = enemy;
@@ -334,10 +339,9 @@ export class GameScene extends Phaser.Scene {
     const score = String(this.registry.get('score')).padStart(6, '0');
     const balls = String(this.registry.get('balls')).padStart(2, '0');
     const active = getActive(this.registry);
-    const species = SPECIES[active.species];
     this.hud.setText([
       `SCORE ${score}   POKE BALLS x${balls}   LIVES ${this.registry.get('lives')}`,
-      `${species.name}  HP ${active.hp}/${species.maxHp}`,
+      `${SPECIES[active.species].name} Lv${active.level}  HP ${active.hp}/${maxHpOf(active)}  XP ${active.xp}/${XP_PER_LEVEL}`,
     ]);
 
     // Team icons in the top-right corner, with the active one highlighted.

@@ -23,6 +23,11 @@ export const PALETTE: Record<string, string> = {
   d: '#3c9070', // dark teal
   g: '#58b030', // green
   G: '#2f7a1c', // dark green
+  q: '#98d870', // light green
+  R: '#e05030', // charmeleon red
+  v: '#8890e0', // wartortle blue
+  i: '#f088a8', // pink
+  P: '#5848a0', // butterfree purple
 };
 
 /** Builds walk/walk/jump frames from a shared top half and three pairs of feet. */
@@ -197,6 +202,202 @@ const SQUIRTLE = withFeet(
   ],
 );
 
+const RAICHU = withFeet(
+  [
+    'b..........b....',
+    'bb........bb....',
+    'bnb......bnb....',
+    '.bnb....bnb.....',
+    '..nnnnnnnn......',
+    '.nnnnnnnnnn.....',
+    '.nnknnnnknn..yy.',
+    '.yynnnknnyy.yy..',
+    '.yynnnnnnyy.yy..',
+    '..nnnnnnnn..k...',
+    '.nnnllllnnn.k...',
+    '.nnllllllnnk....',
+    '..nllllllnk.....',
+    '..nnnnnnnn......',
+  ],
+  [
+    ['...nn....nn.....', '..bnn....nnb....'],
+    ['..nn......nn....', '.bn........nb...'],
+    ['...nnnnnnnn.....', '....bb..bb......'],
+  ],
+);
+
+const RATICATE = withFeet(
+  [
+    '.......mm.mm....',
+    '......mmmmmm....',
+    '.....mmmmmrmm...',
+    '....mmmmmmmmmmk.',
+    'k..mmmmmmmmmlwwk',
+    '.kmmmmmmmmmllww.',
+    '..mmmmmmmmlll...',
+    '.mmmmmmmmllll...',
+    'mmmmmmmlllll....',
+    'm.mmmmmmmmm.....',
+  ],
+  [
+    ['...mm....mm.....', '..mmm...mmm.....'],
+    ['....mm..mm......', '...mmm.mmm......'],
+    ['...mmmmmmmm.....', '..mm.....mm.....'],
+  ],
+);
+
+const PIDGEOTTO_WINGS_DOWN = [
+  '.....rry........',
+  '......rryy......',
+  '.......rbbbb....',
+  '......bbbbkwb...',
+  '......bbbbkkbo..',
+  '.....bbllllbboo.',
+  '.bbbbbblllllb...',
+  'bmmmmbbllllllb..',
+  '.bmmmmbllllllb..',
+  '..bmmmmbllllb...',
+  '...bbbbbbbbb....',
+  '....bbbbbbbb....',
+  '.....o....o.....',
+  '....oo...oo.....',
+];
+const PIDGEOTTO_WINGS_UP = [
+  '.....rry........',
+  '......rryy......',
+  '.bb....rbbbb....',
+  '.bmmb.bbbbkwb...',
+  '..bmmmbbbbkkbo..',
+  '...bmmbllllbboo.',
+  '....bbblllllb...',
+  '.....bbllllllb..',
+  '......bllllllb..',
+  '......bbllllb...',
+  '...bbbbbbbbb....',
+  '....bbbbbbbb....',
+  '.....o....o.....',
+  '....oo...oo.....',
+];
+const PIDGEOTTO = [PIDGEOTTO_WINGS_DOWN, PIDGEOTTO_WINGS_UP, PIDGEOTTO_WINGS_UP];
+
+const METAPOD_BODY = [
+  '.......gggg.....',
+  '......ggggqg....',
+  '.....gggggqgg...',
+  '.....ggkkkgggg..',
+  '.....ggggggggg..',
+  '....ggggggggGg..',
+  '....gGggggggGg..',
+  '....ggGgggggg...',
+  '....gggGggggg...',
+  '....ggggGgggg...',
+  '.....ggggggg....',
+  '.....gggggg.....',
+  '......gggg......',
+];
+// Metapod can't walk, so it hops: the second frame sits one pixel higher.
+const METAPOD = [METAPOD_BODY, [...METAPOD_BODY, '................'], [...METAPOD_BODY, '................', '................']];
+
+const BUTTERFREE_OPEN = [
+  '....k......k....',
+  '.....k....k.....',
+  'kkk...PPPP...kkk',
+  'kwwkk.PrrP.kkwwk',
+  'kwwwwkPPPPkwwwwk',
+  'kwwkwwkPPkwwkwwk',
+  '.kwwwwkPPkwwwwk.',
+  '..kkkkkPPkkkkk..',
+  '..kwwwkPPkwwwk..',
+  '...kwwkPPkwwk...',
+  '....kk.PP.kk....',
+  '.......kk.......',
+  '................',
+];
+const BUTTERFREE_CLOSED = [
+  '....k......k....',
+  '.....k....k.....',
+  '......PPPP......',
+  '....kkPrrPkk....',
+  '...kwwkPPkwwk...',
+  '...kwwwPPwwwk...',
+  '...kwwkPPkwwk...',
+  '....kwkPPkwk....',
+  '....kwwPPwwk....',
+  '.....kkPPkk.....',
+  '.......PP.......',
+  '.......kk.......',
+  '................',
+];
+const BUTTERFREE = [BUTTERFREE_OPEN, BUTTERFREE_CLOSED, BUTTERFREE_OPEN];
+
+const IVYSAUR = withFeet(
+  [
+    '.....iii........',
+    '....iiiii.......',
+    '..gg.iii.gg.....',
+    '.ggggGiGgggg....',
+    '..gggGGGggg.tt..',
+    '...gggggg..tttt.',
+    '..ttttttttttkwt.',
+    '.tdttttttttkrtt.',
+    '.ttttdtttttttttt',
+    '.tttttttdttttwt.',
+    '..tttttttttttt..',
+    '..dttttttttttd..',
+  ],
+  [
+    ['..tt...tt..tt...', '.ttt..ttt.ttt...'],
+    ['...tt.tt...tt.tt', '..ttt.tt..ttt.tt'],
+    ['..tttttttttt....', '..tt......tt....'],
+  ],
+);
+
+const CHARMELEON = withFeet(
+  [
+    '....R...........',
+    '.....RRRRR......',
+    '....RRRRRRR.....',
+    '....RRRRRkwR....',
+    '....RRRRRkkRR...',
+    '....RRRRRRRRRR..',
+    '.....RRRRRRRR...',
+    '......RRRR......',
+    '.....RllllR.R...',
+    '..r..RRllllRR...',
+    '.ryr.RRllllR....',
+    '.ryr.RRllllRR...',
+    '..RRRRRllllRR...',
+    '......RRllRR....',
+  ],
+  [
+    ['......RR..RR....', '.....RRR..RRR...'],
+    ['.......RRRR.....', '......RRR.RRR...'],
+    ['......RRRRRR....', '.....RR....RR...'],
+  ],
+);
+
+const WARTORTLE = withFeet(
+  [
+    '....w..vvvv.....',
+    '...wwwvvvvvv....',
+    '....wvvvvvkwv...',
+    '.....vvvvvkkv...',
+    '.....vvvvvvvvvv.',
+    '......vvvvvvvv..',
+    '.ww.bbbblllv....',
+    'wwwwbbmbbllllv..',
+    '.wwwbmmmbllllv..',
+    '..wwbbmbbllll...',
+    '...wbbbbbllll...',
+    '....bbbbbblll...',
+  ],
+  [
+    ['.....vv..vv.....', '....vvv..vvv....'],
+    ['......vvvv......', '.....vvv.vvv....'],
+    ['.....vvvvvv.....', '....vv....vv....'],
+  ],
+);
+
 export const POKEMON_ART: Record<SpeciesId, string[][]> = {
   pikachu: PIKACHU,
   rattata: RATTATA,
@@ -205,6 +406,14 @@ export const POKEMON_ART: Record<SpeciesId, string[][]> = {
   bulbasaur: BULBASAUR,
   charmander: CHARMANDER,
   squirtle: SQUIRTLE,
+  raichu: RAICHU,
+  raticate: RATICATE,
+  pidgeotto: PIDGEOTTO,
+  metapod: METAPOD,
+  butterfree: BUTTERFREE,
+  ivysaur: IVYSAUR,
+  charmeleon: CHARMELEON,
+  wartortle: WARTORTLE,
 };
 
 export const POKEBALL = [

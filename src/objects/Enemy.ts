@@ -10,17 +10,19 @@ const FLY_RANGE = 4 * TILE;
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body;
   readonly species: SpeciesId;
+  readonly level: number;
   private awake = false;
   private readonly speed: number;
   private readonly flies: boolean;
   private readonly homeX: number;
   private readonly homeY: number;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, species: SpeciesId) {
+  constructor(scene: Phaser.Scene, x: number, y: number, species: SpeciesId, level: number) {
     super(scene, x, y, species, 0);
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.species = species;
+    this.level = level;
     this.speed = SPECIES[species].speed;
     this.flies = SPECIES[species].flies ?? false;
     this.homeX = x;
