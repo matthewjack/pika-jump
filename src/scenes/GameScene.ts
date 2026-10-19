@@ -1,12 +1,24 @@
 import Phaser from 'phaser';
 import { TILE, VIEW_WIDTH } from '../config';
-import { PIKACHU_MAX_HP } from '../battle/moves';
 import { LEVEL_1 } from '../levels/level1';
 import { Enemy } from '../objects/Enemy';
 import { Player } from '../objects/Player';
+import { RANDOM_WILD, SPECIES, type SpeciesId } from '../pokemon/species';
+import { getActive, getActiveIndex, getTeam, healActive, healAll, setActiveIndex } from '../pokemon/team';
 import type { BattleData, BattleResult } from './BattleScene';
 
 type Image = Phaser.Physics.Arcade.Image;
+
+const WILD_LETTERS: Record<string, SpeciesId> = {
+  r: 'rattata',
+  p: 'pidgey',
+  c: 'caterpie',
+  b: 'bulbasaur',
+  h: 'charmander',
+  s: 'squirtle',
+};
+
+const HUD_STYLE = { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', stroke: '#202020', strokeThickness: 3 };
 
 export class GameScene extends Phaser.Scene {
   private player!: Player;
@@ -15,6 +27,7 @@ export class GameScene extends Phaser.Scene {
   private enemies!: Phaser.Physics.Arcade.Group;
   private flag!: Image;
   private hud!: Phaser.GameObjects.Text;
+  private hudTeam!: Phaser.GameObjects.Container;
   private worldWidth = 0;
   private worldHeight = 0;
   private headHits: Image[] = [];
@@ -49,6 +62,8 @@ export class GameScene extends Phaser.Scene {
           case '#': {
             const isTop = rows[r - 1]?.[c] !== '#';
             this.solids.create(x, y, isTop ? 'grass' : 'dirt');
+            // Sprinkle grass tufts along the top of the ground.
+            if (isTop && (c * 7) % 3 === 0) this.add.image(x + ((c * 5) % 7) - 3, y - TILE / 2, 'tuft').setOrigin(0.5, 1).setDepth(1);
             break;
           }
           case 'X':
@@ -63,12 +78,6 @@ export class GameScene extends Phaser.Scene {
           case 'o':
             this.balls.create(x, y, 'pokeball');
             break;
-          case 'E': {
-            const enemy = new Enemy(this, x, (r + 1) * TILE - 4);
-            this.enemies.add(enemy);
-            enemy.setCollideWorldBounds(true);
-            break;
-          }
           case 'P':
             start = { x, y };
             break;
@@ -77,11 +86,15 @@ export class GameScene extends Phaser.Scene {
             this.flag.refreshBody();
             this.flag.body!.setSize(4, this.flag.height).setOffset(10, 0);
             break;
+          default: {
+            const species = ch === 'E' ? Phaser.Utils.Array.GetRandom(RANDOM_WILD) : WILD_LETTERS[ch];
+            if (species) this.spawnWild(species, x, y);
+          }
         }
       });
     });
 
-    this.player = new Player(this, start.x, start.y);
+    this.player = new Player(this, start.x, start.y, getActive(this.registry).species);
     this.player.setCollideWorldBounds(true);
 
     // Let things fall out the bottom of the world (into pits).
@@ -98,10 +111,13 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
     this.cameras.main.startFollow(this.player, true, 0.2, 0.2);
 
-    this.hud = this.add
-      .text(6, 4, '', { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', stroke: '#202020', strokeThickness: 3 })
-      .setScrollFactor(0)
-      .setDepth(100);
+    // Switch Pokémon: S cycles through the team, or press 1–6 to pick one.
+    const keyboard = this.input.keyboard!;
+    keyboard.on('keydown-S', () => this.switchTo(this.nextAlive()));
+    ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX'].forEach((name, i) => keyboard.on(`keydown-${name}`, () => this.switchTo(i)));
+
+    this.hud = this.add.text(6, 4, '', HUD_STYLE).setScrollFactor(0).setDepth(100);
+    this.hudTeam = this.add.container(0, 0).setScrollFactor(0).setDepth(100);
     this.refreshHud();
   }
 
@@ -120,16 +136,28 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private spawnWild(species: SpeciesId, x: number, y: number) {
+    const enemy = new Enemy(this, x, y, species).setDepth(5);
+    this.enemies.add(enemy);
+    enemy.setup();
+  }
+
+  /** A forest: a dark tree line far away, then bigger trees and bushes closer up. */
   private createBackground() {
-    for (let x = 0; x < this.worldWidth * 0.3 + VIEW_WIDTH; x += 140) {
-      this.add.image(x, 24 + ((x / 140) % 3) * 18, 'cloud').setScrollFactor(0.3).setOrigin(0, 0);
+    const groundY = this.worldHeight - 2 * TILE;
+    this.add.rectangle(0, groundY - 40, VIEW_WIDTH, 40, 0x24592e).setOrigin(0).setScrollFactor(0);
+    for (let i = 0, x = 0; x < this.worldWidth * 0.3 + VIEW_WIDTH; i++, x += 22 + ((i * 13) % 9)) {
+      this.add.image(x, groundY + ((i * 7) % 5), 'tree-far').setOrigin(0.5, 1).setScrollFactor(0.3);
     }
-    for (let x = 0; x < this.worldWidth * 0.6 + VIEW_WIDTH; x += 220) {
-      this.add.image(x, this.worldHeight - 2 * TILE, 'hill').setScrollFactor(0.6).setOrigin(0, 1);
+    for (let i = 0, x = 30; x < this.worldWidth * 0.6 + VIEW_WIDTH; i++, x += 70 + ((i * 29) % 50)) {
+      this.add.image(x, groundY, 'tree').setOrigin(0.5, 1).setScrollFactor(0.6);
+    }
+    for (let i = 0, x = 10; x < this.worldWidth * 0.85 + VIEW_WIDTH; i++, x += 60 + ((i * 17) % 40)) {
+      this.add.image(x, groundY + 1, 'bush').setOrigin(0.5, 1).setScrollFactor(0.85);
     }
   }
 
-  /** When Pikachu bonks a block from below, bump the one closest to its head. */
+  /** When the player bonks a block from below, bump the one closest to its head. */
   private handleHeadHits() {
     if (this.headHits.length === 0) return;
     const block = this.headHits.reduce((a, b) =>
@@ -173,27 +201,53 @@ export class GameScene extends Phaser.Scene {
     this.addBalls(1);
   }
 
-  /** Each Poké Ball also heals Pikachu by 1 HP. */
+  /** Poké Balls can be thrown in battle to catch Pokémon. Each one also heals 1 HP. */
   private addBalls(n: number) {
     this.registry.inc('balls', n);
-    this.registry.set('hp', Math.min(PIKACHU_MAX_HP, this.registry.get('hp') + n));
     this.registry.inc('score', 10 * n);
+    healActive(this.registry, n);
     this.refreshHud();
   }
+
+  // ---------- Switching Pokémon ----------
+
+  /** The next team member after the current one that hasn't fainted. */
+  private nextAlive() {
+    const team = getTeam(this.registry);
+    const active = getActiveIndex(this.registry);
+    for (let step = 1; step < team.length; step++) {
+      const i = (active + step) % team.length;
+      if (team[i].hp > 0) return i;
+    }
+    return active;
+  }
+
+  private switchTo(index: number) {
+    const team = getTeam(this.registry);
+    if (this.state !== 'playing' || index === getActiveIndex(this.registry) || !team[index] || team[index].hp <= 0) return;
+    setActiveIndex(this.registry, index);
+    this.player.setSpecies(team[index].species);
+
+    const puff = this.add.circle(this.player.x, this.player.y, 6, 0xffffff).setDepth(11);
+    this.tweens.add({ targets: puff, scale: 3, alpha: 0, duration: 250, onComplete: () => puff.destroy() });
+    this.refreshHud();
+  }
+
+  // ---------- Battles ----------
 
   private touchEnemy(enemy: Enemy) {
     if (this.state !== 'playing' || !enemy.body.enable || enemy === this.ranFrom) return;
     this.startBattle(enemy);
   }
 
-  /** Bumping into a Rattata starts a Pokémon battle. Jump over it to avoid one! */
+  /** Bumping into a wild Pokémon starts a battle. Jump over it to avoid one! */
   private startBattle(enemy: Enemy) {
     this.state = 'battle';
     this.physics.pause();
     this.player.anims.stop();
     this.cameras.main.flash(300, 255, 255, 255);
 
-    const data: BattleData = { onEnd: (result) => this.endBattle(enemy, result) };
+    const data: BattleData = { species: enemy.species, onEnd: (result) => this.endBattle(enemy, result) };
     this.time.delayedCall(300, () => {
       this.scene.pause();
       this.scene.launch('Battle', data);
@@ -205,34 +259,40 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard!.resetKeys();
     this.physics.resume();
     this.state = 'playing';
-    this.refreshHud();
+    // You might have switched Pokémon during the battle.
+    this.player.setSpecies(getActive(this.registry).species);
 
     if (result === 'won') {
-      enemy.squash();
+      enemy.faint();
       this.registry.inc('score', 100);
-      this.refreshHud();
+    } else if (result === 'caught') {
+      enemy.destroy();
+      this.registry.inc('score', 200);
     } else if (result === 'ran') {
-      // The Rattata wanders off, and won't battle again until you've separated.
+      // The wild Pokémon wanders off, and won't battle again until you've separated.
       this.ranFrom = enemy;
       enemy.walkAwayFrom(this.player.x);
       this.tweens.add({ targets: this.player, alpha: 0.3, duration: 100, yoyo: true, repeat: 9 });
     } else {
       this.die(true);
     }
+    this.refreshHud();
   }
+
+  // ---------- Dying and winning ----------
 
   private die(withHop: boolean) {
     this.state = 'dying';
     this.player.frozen = true;
     this.registry.inc('lives', -1);
-    this.registry.set('hp', PIKACHU_MAX_HP);
+    healAll(this.registry);
     this.refreshHud();
 
     const body = this.player.body;
     body.checkCollision.none = true;
     body.setAcceleration(0, 0).setVelocity(0, withHop ? -300 : 0);
     this.player.setCollideWorldBounds(false);
-    this.player.anims.play('pika-jump');
+    this.player.anims.play(`${getActive(this.registry).species}-jump`);
     this.cameras.main.stopFollow();
 
     this.time.delayedCall(1500, () => {
@@ -250,12 +310,13 @@ export class GameScene extends Phaser.Scene {
     this.player.frozen = true;
     const body = this.player.body;
     body.setAcceleration(0, 0).setVelocity(0, 0);
-    this.player.anims.play('pika-idle');
+    this.player.anims.play(`${getActive(this.registry).species}-idle`);
     this.registry.inc('score', 1000);
     this.refreshHud();
     this.showMessage('YOU DID IT!', 'Press SPACE to play again');
   }
 
+  /** Big message in the middle of the screen. Space starts over (you keep your Pokémon). */
   private showMessage(title: string, subtitle: string) {
     const cx = VIEW_WIDTH / 2;
     const style = { fontFamily: 'monospace', color: '#ffffff', stroke: '#202020', strokeThickness: 4 };
@@ -263,7 +324,8 @@ export class GameScene extends Phaser.Scene {
     this.add.text(cx, 110, subtitle, { ...style, fontSize: '10px' }).setOrigin(0.5).setScrollFactor(0).setDepth(100);
 
     this.input.keyboard!.once('keydown-SPACE', () => {
-      this.registry.set({ score: 0, balls: 0, lives: 3, hp: PIKACHU_MAX_HP });
+      this.registry.set({ score: 0, balls: 0, lives: 3 });
+      healAll(this.registry);
       this.scene.restart();
     });
   }
@@ -271,7 +333,24 @@ export class GameScene extends Phaser.Scene {
   private refreshHud() {
     const score = String(this.registry.get('score')).padStart(6, '0');
     const balls = String(this.registry.get('balls')).padStart(2, '0');
-    const hp = `${this.registry.get('hp')}/${PIKACHU_MAX_HP}`;
-    this.hud.setText(`SCORE ${score}   POKE BALLS x${balls}   HP ${hp}   LIVES ${this.registry.get('lives')}`);
+    const active = getActive(this.registry);
+    const species = SPECIES[active.species];
+    this.hud.setText([
+      `SCORE ${score}   POKE BALLS x${balls}   LIVES ${this.registry.get('lives')}`,
+      `${species.name}  HP ${active.hp}/${species.maxHp}`,
+    ]);
+
+    // Team icons in the top-right corner, with the active one highlighted.
+    this.hudTeam.removeAll(true);
+    const team = getTeam(this.registry);
+    const activeIndex = getActiveIndex(this.registry);
+    team.forEach((member, i) => {
+      const x = VIEW_WIDTH - 12 - (team.length - 1 - i) * 20;
+      if (i === activeIndex) this.hudTeam.add(this.add.rectangle(x, 12, 19, 19, 0xffffff, 0.6).setStrokeStyle(1, 0x202020));
+      this.hudTeam.add(this.add.image(x, 12, member.species, 0).setAlpha(member.hp > 0 ? 1 : 0.3));
+    });
+    if (team.length > 1) {
+      this.hudTeam.add(this.add.text(VIEW_WIDTH - 4, 24, 'S = SWITCH', { ...HUD_STYLE, fontSize: '8px' }).setOrigin(1, 0));
+    }
   }
 }

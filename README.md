@@ -1,6 +1,6 @@
 # Pika Jump
 
-A Mario-style platformer starring Pikachu, built with [Phaser 4](https://phaser.io) and TypeScript. A personal project for the kids.
+A Mario-style platformer with Pokémon, built with [Phaser 4](https://phaser.io) and TypeScript. A personal project for the kids.
 
 ## Play
 
@@ -15,22 +15,32 @@ Then open http://localhost:5173.
 |---|---|
 | ← → | Run |
 | ↑ or Space | Jump (hold for higher) |
+| S, or 1–6 | Switch which Pokémon you are |
 
-Collect the Poké Balls, bonk the Poké Ball blocks from underneath, and reach the flag.
+Run through the forest, collect Poké Balls, bonk the Poké Ball blocks from underneath, and reach the flag.
 
-**Battles:** bump into a Rattata and you have to battle it, Pokémon-style. Jump over it to avoid the battle. In a battle, use the arrow keys and Space/Enter to choose **FIGHT** (Thunderbolt, Thunder Shock or Quick Attack) or **RUN**. Pikachu's HP carries over between battles, and each Poké Ball you collect heals 1 HP. If Pikachu faints, you lose a life.
+**Wild Pokémon:** Rattata, Pidgey, Caterpie, Bulbasaur, Charmander and Squirtle wander the level. Bump into one and you battle it, Pokémon-style. Jump over it to avoid the battle.
+
+**Battles:** use the arrow keys and Space/Enter to pick:
+- **FIGHT**: use one of your Pokémon's moves. The number is how much damage it does.
+- **BALL**: throw a Poké Ball. There's a 50% chance to catch the Pokémon, and then it joins your team (up to 6).
+- **POKEMON**: switch to another team member.
+- **RUN**: get away.
+
+HP carries over between battles, and each Poké Ball you collect heals your current Pokémon by 1. If a Pokémon faints you choose the next one. If your whole team faints you lose a life, and everyone is healed.
 
 ## Where things live
 
 | File | What it is |
 |---|---|
-| `src/levels/level1.ts` | The level, drawn as text. Each character is one tile, so it's easy to edit. |
-| `src/art/sprites.ts` | Pikachu, Rattata and the Poké Ball as text pixel art, plus the colour palette. |
-| `src/art/textures.ts` | Turns the pixel art into textures, and draws tiles, clouds, hills and the flag. |
+| `src/levels/level1.ts` | The level, drawn as text. Each character is one tile (the key is at the top of the file), so it's easy to edit. |
+| `src/art/sprites.ts` | All the Pokémon and the Poké Ball as text pixel art, plus the colour palette. |
+| `src/art/textures.ts` | Turns the pixel art into textures, and draws tiles, trees, bushes and the flag. |
 | `src/objects/Player.ts` | Movement and jump feel. The constants at the top tune speed and jump height. |
-| `src/objects/Enemy.ts` | Rattata walking and fainting. |
-| `src/battle/moves.ts` | Battle numbers: HP, moves, damage and accuracy. Easy to tweak or add moves. |
-| `src/scenes/BattleScene.ts` | The Pokémon-style battle screen. |
+| `src/objects/Enemy.ts` | Wild Pokémon walking (or flying) around. |
+| `src/pokemon/species.ts` | Every Pokémon's HP, moves, damage and accuracy, plus the catch chance. Easy to tweak or add moves. |
+| `src/pokemon/team.ts` | Your team of caught Pokémon. |
+| `src/scenes/BattleScene.ts` | The battle screen: fighting, catching and switching. |
 | `src/scenes/GameScene.ts` | Builds the level, plus collisions, scoring, starting battles, dying and winning. |
 
 ## Using real sprite images instead
@@ -43,4 +53,4 @@ preload() {
 }
 ```
 
-Keep the same texture keys (`pikachu`, `rattata`, `pokeball`). The walk animation uses frames 0 and 1, and the jump uses frame 2. If the frames aren't 16×16, adjust `body.setSize` in `Player.ts` / `Enemy.ts`.
+Keep the same texture keys (`pikachu`, `rattata`, `pidgey`, `caterpie`, `bulbasaur`, `charmander`, `squirtle`, `pokeball`). The walk animation uses frames 0 and 1, and the jump uses frame 2. Frames should be 16×16.

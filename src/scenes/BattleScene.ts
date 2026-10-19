@@ -1,35 +1,61 @@
 import Phaser from 'phaser';
 import { VIEW_HEIGHT, VIEW_WIDTH } from '../config';
-import { type Move, PIKACHU_MAX_HP, PIKACHU_MOVES, RATTATA_MAX_HP, RATTATA_MOVES } from '../battle/moves';
+import { CATCH_CHANCE, type Move, SPECIES, type SpeciesId } from '../pokemon/species';
+import { getActiveIndex, getTeam, saveTeam, setActiveIndex, teamIsFull, type TeamMember } from '../pokemon/team';
 
-export type BattleResult = 'won' | 'ran' | 'fainted';
+export type BattleResult = 'won' | 'caught' | 'ran' | 'fainted';
 
 export interface BattleData {
+  species: SpeciesId;
   onEnd: (result: BattleResult) => void;
 }
 
+type Action =
+  | { kind: 'move'; move: Move }
+  | { kind: 'ball' }
+  | { kind: 'switch'; index: number }
+  | { kind: 'run' };
+
 const TEXT = { fontFamily: 'monospace', color: '#202020' };
 const BOX_Y = 168;
+const MINE_X = 110;
+const MINE_Y = 164;
+const WILD_X = 300;
+const WILD_Y = 92;
+const BAR_WIDTH = 100;
 
-/** One side of the fight: a sprite plus its HP bar. */
+/** One side of the fight: a sprite plus its name and HP bar. */
 interface Fighter {
-  name: string;
+  species: SpeciesId;
   hp: number;
   maxHp: number;
   sprite: Phaser.GameObjects.Sprite;
+  nameText: Phaser.GameObjects.Text;
   bar: Phaser.GameObjects.Rectangle;
   hpText: Phaser.GameObjects.Text;
-  barWidth: number;
+}
+
+interface MenuOptions {
+  columns: number;
+  x: number;
+  y: number;
+  colWidth?: number;
+  rowHeight?: number;
+  /** Items that can't be picked (e.g. a fainted Pokémon). */
+  disabled?: boolean[];
 }
 
 export class BattleScene extends Phaser.Scene {
   private battleData!: BattleData;
-  private pika!: Fighter;
-  private rat!: Fighter;
+  private team: TeamMember[] = [];
+  private activeIndex = 0;
+  private mine!: Fighter;
+  private wild!: Fighter;
   private message!: Phaser.GameObjects.Text;
   private menuItems: Phaser.GameObjects.Text[] = [];
   private menuChoice = 0;
   private menuColumns = 1;
+  private menuDisabled: boolean[] = [];
   private onMenuPick: ((index: number) => void) | null = null;
 
   constructor() {
@@ -43,19 +69,23 @@ export class BattleScene extends Phaser.Scene {
   }
 
   create() {
+    this.team = getTeam(this.registry).map((m) => ({ ...m }));
+    this.activeIndex = getActiveIndex(this.registry);
+
     // Scenery
     this.add.rectangle(0, 0, VIEW_WIDTH, VIEW_HEIGHT, 0xf0f8d8).setOrigin(0);
-    this.add.ellipse(300, 92, 130, 26, 0xb8d890);
-    this.add.ellipse(110, 166, 150, 28, 0xb8d890);
+    this.add.ellipse(WILD_X, WILD_Y, 130, 26, 0xb8d890);
+    this.add.ellipse(MINE_X, MINE_Y + 2, 150, 28, 0xb8d890);
 
-    this.rat = this.makeFighter('RATTATA', RATTATA_MAX_HP, RATTATA_MAX_HP, 'rattata', 300, 92, 14, 14);
-    this.rat.sprite.anims.play('rat-walk');
-    const hp = this.registry.get('hp') as number;
-    this.pika = this.makeFighter('PIKACHU', hp, PIKACHU_MAX_HP, 'pikachu', 110, 164, 236, 112);
+    const wildSpecies = SPECIES[this.battleData.species];
+    this.wild = this.makeFighter(this.battleData.species, wildSpecies.maxHp, WILD_X, WILD_Y, 14, 14);
+    this.wild.sprite.setFlipX(true).anims.play(`${this.battleData.species}-walk`);
+    const active = this.team[this.activeIndex];
+    this.mine = this.makeFighter(active.species, active.hp, MINE_X, MINE_Y, 236, 112);
 
     // Message box along the bottom
     this.add.rectangle(4, BOX_Y + 2, VIEW_WIDTH - 8, VIEW_HEIGHT - BOX_Y - 6, 0xffffff).setOrigin(0).setStrokeStyle(3, 0x485890);
-    this.message = this.add.text(14, BOX_Y + 10, '', { ...TEXT, fontSize: '11px', wordWrap: { width: 220 } });
+    this.message = this.add.text(14, BOX_Y + 10, '', { ...TEXT, fontSize: '11px', wordWrap: { width: 200 } });
 
     this.input.keyboard!.on('keydown', (e: KeyboardEvent) => this.handleKey(e));
     this.cameras.main.fadeIn(250, 255, 255, 255);
@@ -63,80 +93,189 @@ export class BattleScene extends Phaser.Scene {
     void this.run();
   }
 
-  private makeFighter(name: string, hp: number, maxHp: number, texture: string, x: number, y: number, boxX: number, boxY: number): Fighter {
-    const sprite = this.add.sprite(x, y, texture, 0).setOrigin(0.5, 1).setScale(4);
-
-    const barWidth = 100;
+  private makeFighter(species: SpeciesId, hp: number, x: number, y: number, boxX: number, boxY: number): Fighter {
+    const sprite = this.add.sprite(x, y, species, 0).setOrigin(0.5, 1).setScale(4);
     this.add.rectangle(boxX, boxY, 150, 42, 0xf8f8f0).setOrigin(0).setStrokeStyle(2, 0x404040);
-    this.add.text(boxX + 8, boxY + 4, name, { ...TEXT, fontSize: '11px', fontStyle: 'bold' });
+    const nameText = this.add.text(boxX + 8, boxY + 4, '', { ...TEXT, fontSize: '11px', fontStyle: 'bold' });
     this.add.text(boxX + 8, boxY + 20, 'HP', { ...TEXT, fontSize: '9px', color: '#e08000', fontStyle: 'bold' });
-    this.add.rectangle(boxX + 24, boxY + 21, barWidth + 4, 9, 0x404040).setOrigin(0);
-    const bar = this.add.rectangle(boxX + 26, boxY + 23, barWidth, 5, 0x40c040).setOrigin(0);
+    this.add.rectangle(boxX + 24, boxY + 21, BAR_WIDTH + 4, 9, 0x404040).setOrigin(0);
+    const bar = this.add.rectangle(boxX + 26, boxY + 23, BAR_WIDTH, 5, 0x40c040).setOrigin(0);
     const hpText = this.add.text(boxX + 142, boxY + 30, '', { ...TEXT, fontSize: '9px' }).setOrigin(1, 0);
 
-    const fighter = { name, hp, maxHp, sprite, bar, hpText, barWidth };
-    this.drawHp(fighter, false);
+    const fighter: Fighter = { species, hp, maxHp: SPECIES[species].maxHp, sprite, nameText, bar, hpText };
+    this.showFighter(fighter, species, hp);
     return fighter;
+  }
+
+  /** Puts a (possibly different) Pokémon into a fighter slot. */
+  private showFighter(fighter: Fighter, species: SpeciesId, hp: number) {
+    fighter.species = species;
+    fighter.hp = hp;
+    fighter.maxHp = SPECIES[species].maxHp;
+    fighter.sprite.setTexture(species, 0);
+    fighter.nameText.setText(SPECIES[species].name);
+    this.drawHp(fighter, false);
+  }
+
+  private nameOf(fighter: Fighter) {
+    const name = SPECIES[fighter.species].name;
+    return fighter === this.wild ? `Wild ${name}` : name;
   }
 
   // ---------- The battle itself ----------
 
   private async run() {
-    await this.say('A wild RATTATA appeared!');
-    await this.say('Go! PIKACHU!');
+    await this.say(`A wild ${SPECIES[this.wild.species].name} appeared!`);
+    await this.say(`Go! ${this.nameOf(this.mine)}!`);
 
     while (true) {
       const action = await this.chooseAction();
-      if (action === 'run') {
+
+      if (action.kind === 'run') {
         await this.say('Got away safely!');
         return this.finish('ran');
       }
-
-      await this.useMove(this.pika, this.rat, action);
-      if (this.rat.hp <= 0) {
-        await this.faint(this.rat);
-        await this.say('Wild RATTATA fainted!');
-        return this.finish('won');
+      if (action.kind === 'ball') {
+        const outcome = await this.throwBall();
+        if (outcome === 'caught') return this.finish('caught');
+        if (outcome === 'no-throw') continue;
+      }
+      if (action.kind === 'switch') {
+        await this.switchIn(action.index, true);
+      }
+      if (action.kind === 'move') {
+        await this.useMove(this.mine, this.wild, action.move);
+        if (this.wild.hp <= 0) {
+          await this.faint(this.wild);
+          await this.say(`${this.nameOf(this.wild)} fainted!`);
+          return this.finish('won');
+        }
       }
 
-      const ratMove = Phaser.Utils.Array.GetRandom(RATTATA_MOVES);
-      await this.useMove(this.rat, this.pika, ratMove);
-      if (this.pika.hp <= 0) {
-        await this.faint(this.pika);
-        await this.say('PIKACHU fainted!');
-        return this.finish('fainted');
+      // The wild Pokémon's turn
+      await this.useMove(this.wild, this.mine, Phaser.Utils.Array.GetRandom(SPECIES[this.wild.species].moves));
+      if (this.mine.hp <= 0) {
+        await this.faint(this.mine);
+        await this.say(`${this.nameOf(this.mine)} fainted!`);
+        if (!this.team.some((m) => m.hp > 0)) return this.finish('fainted');
+        await this.say('Choose your next POKEMON!');
+        await this.switchIn(await this.chooseTeamMember(false), false);
       }
     }
   }
 
-  /** Shows FIGHT / RUN, then the move list. Resolves with a move, or 'run'. */
-  private async chooseAction(): Promise<Move | 'run'> {
+  private async chooseAction(): Promise<Action> {
     while (true) {
-      this.message.setText('What will PIKACHU do?');
-      const pick = await this.menu(['FIGHT', 'RUN'], 2, 250, BOX_Y + 22, 70);
-      if (pick === 1) return 'run';
+      this.message.setText(`What will ${this.nameOf(this.mine)} do?`);
+      const balls = this.registry.get('balls');
+      const pick = await this.menu(['FIGHT', `BALL x${balls}`, 'POKEMON', 'RUN'], { columns: 2, x: 222, y: BOX_Y + 12, colWidth: 88 });
 
-      this.message.setText('');
-      const moveNames = [...PIKACHU_MOVES.map((m) => `${m.name} (${m.damage})`), 'BACK'];
-      const move = await this.menu(moveNames, 2, 20, BOX_Y + 12, 190);
-      if (move < PIKACHU_MOVES.length) return PIKACHU_MOVES[move];
+      if (pick === 0) {
+        this.message.setText('');
+        const moves = SPECIES[this.mine.species].moves;
+        const labels = [...moves.map((m) => `${m.name} (${m.damage})`), 'BACK'];
+        const choice = await this.menu(labels, { columns: 2, x: 20, y: BOX_Y + 12, colWidth: 190 });
+        if (choice < moves.length) return { kind: 'move', move: moves[choice] };
+      } else if (pick === 1) {
+        return { kind: 'ball' };
+      } else if (pick === 2) {
+        const index = await this.chooseTeamMember(true);
+        if (index >= 0) return { kind: 'switch', index };
+      } else {
+        return { kind: 'run' };
+      }
     }
   }
 
   private async useMove(attacker: Fighter, target: Fighter, move: Move) {
-    const who = attacker === this.pika ? 'PIKACHU' : 'Wild RATTATA';
-    await this.say(`${who} used ${move.name}!`, 400);
+    await this.say(`${this.nameOf(attacker)} used ${move.name}!`, 400);
 
     if (Math.random() > move.accuracy) {
-      await this.say(`${who}'s attack missed!`);
+      await this.say(`${this.nameOf(attacker)}'s attack missed!`);
       return;
     }
 
     await this.playEffect(move, attacker, target);
     target.hp = Math.max(0, target.hp - move.damage);
-    if (target === this.pika) this.registry.set('hp', target.hp);
+    if (target === this.mine) this.saveMyHp();
     await this.drawHp(target, true);
     await this.say(`It did ${move.damage} damage!`);
+  }
+
+  private saveMyHp() {
+    this.team[this.activeIndex].hp = this.mine.hp;
+    saveTeam(this.registry, this.team);
+  }
+
+  /** Swap in a different team member. */
+  private async switchIn(index: number, callBack: boolean) {
+    const sprite = this.mine.sprite;
+    if (callBack) {
+      await this.say(`Come back, ${this.nameOf(this.mine)}!`, -400);
+      await this.tween({ targets: sprite, scale: 0, alpha: 0, duration: 250 });
+    }
+    this.activeIndex = index;
+    setActiveIndex(this.registry, index);
+    const member = this.team[index];
+    this.showFighter(this.mine, member.species, member.hp);
+    sprite.setScale(0).setAlpha(1).setY(MINE_Y);
+    await this.tween({ targets: sprite, scale: 4, duration: 250, ease: 'Back.easeOut' });
+    await this.say(`Go! ${this.nameOf(this.mine)}!`);
+  }
+
+  /** Throws a Poké Ball at the wild Pokémon — a 50/50 chance to catch it. */
+  private async throwBall(): Promise<'caught' | 'broke-free' | 'no-throw'> {
+    if (this.registry.get('balls') <= 0) {
+      await this.say("You don't have any POKE BALLS! Collect some in the level.");
+      return 'no-throw';
+    }
+    if (teamIsFull(this.registry)) {
+      await this.say('Your team is full!');
+      return 'no-throw';
+    }
+
+    this.registry.inc('balls', -1);
+    await this.say('You threw a POKE BALL!', -600);
+
+    const target = this.wild.sprite;
+    const ball = this.add.image(MINE_X + 20, MINE_Y - 60, 'pokeball').setScale(2);
+    const from = { x: ball.x, y: ball.y };
+    const to = { x: target.x, y: target.y - 20 };
+    await this.counter(550, (t) => {
+      ball.x = Phaser.Math.Linear(from.x, to.x, t);
+      ball.y = Phaser.Math.Linear(from.y, to.y, t) - Math.sin(Math.PI * t) * 70;
+      ball.angle = t * 720;
+    });
+
+    // The Pokémon gets sucked into the ball, and the ball drops to the ground.
+    ball.angle = 0;
+    await this.tween({ targets: target, scale: 0, alpha: 0, duration: 250 });
+    await this.tween({ targets: ball, y: target.y - 12, duration: 400, ease: 'Bounce.easeOut' });
+
+    const caught = Math.random() < CATCH_CHANCE;
+    const wobbles = caught ? 3 : Phaser.Math.Between(1, 2);
+    for (let i = 0; i < wobbles; i++) {
+      await this.wait(300);
+      await this.tween({ targets: ball, angle: i % 2 ? 25 : -25, duration: 120, yoyo: true });
+    }
+    await this.wait(400);
+
+    const name = SPECIES[this.wild.species].name;
+    if (caught) {
+      this.sparkle(ball.x, ball.y);
+      await this.say(`Gotcha! ${name} was caught!`);
+      this.team.push({ species: this.wild.species, hp: Math.max(1, this.wild.hp) });
+      saveTeam(this.registry, this.team);
+      await this.say(`${name} joined your team!`);
+      return 'caught';
+    }
+
+    // It broke free!
+    ball.destroy();
+    this.cameras.main.flash(150, 255, 255, 255);
+    await this.tween({ targets: target, scale: 4, alpha: 1, duration: 200 });
+    await this.say(`Oh no! ${name} broke free!`);
+    return 'broke-free';
   }
 
   private finish(result: BattleResult) {
@@ -150,9 +289,11 @@ export class BattleScene extends Phaser.Scene {
   // ---------- Animations ----------
 
   private async playEffect(move: Move, attacker: Fighter, target: Fighter) {
-    const lunge = attacker === this.pika ? 16 : -16;
+    const lunge = attacker === this.mine ? 16 : -16;
+    const from = { x: attacker.sprite.x, y: attacker.sprite.y - 30 };
+    const to = { x: target.sprite.x, y: target.sprite.y - 24 };
     switch (move.effect) {
-      case 'thunderbolt':
+      case 'bolt':
         for (let i = 0; i < 3; i++) {
           const bolt = this.drawBolt(target.sprite.x, 0, target.sprite.y - 10, 5);
           await this.wait(90);
@@ -161,7 +302,7 @@ export class BattleScene extends Phaser.Scene {
         }
         this.cameras.main.shake(200, 0.01);
         break;
-      case 'shock':
+      case 'spark':
         for (let i = 0; i < 4; i++) {
           const x = target.sprite.x + Phaser.Math.Between(-30, 30);
           const y = target.sprite.y - Phaser.Math.Between(20, 50);
@@ -170,15 +311,47 @@ export class BattleScene extends Phaser.Scene {
           spark.destroy();
         }
         break;
+      case 'fire':
+        await this.projectiles(from, to, [0xf85020, 0xf8a020, 0xf8d030], 8, 5);
+        break;
+      case 'water':
+        await this.projectiles(from, to, [0x3890f8, 0x70c0f8, 0xffffff], 8, 4);
+        break;
+      case 'leaf':
+        await this.projectiles(from, to, [0x58b030, 0x2f7a1c], 6, 4);
+        break;
+      case 'wind':
+        await this.projectiles(from, to, [0xffffff, 0xd8e8f0], 6, 6);
+        break;
+      case 'bug':
+        await this.projectiles(from, to, [0xa8d040, 0xffffff], 5, 3);
+        break;
       case 'dash':
         await this.tween({ targets: attacker.sprite, x: attacker.sprite.x + lunge * 4, duration: 90, yoyo: true });
         break;
       case 'tackle':
-      case 'bite':
         await this.tween({ targets: attacker.sprite, x: attacker.sprite.x + lunge * 2, duration: 120, yoyo: true });
         break;
     }
     await this.tween({ targets: target.sprite, alpha: 0, duration: 60, yoyo: true, repeat: 2 });
+  }
+
+  /** A stream of little coloured balls flying from the attacker to the target. */
+  private async projectiles(from: { x: number; y: number }, to: { x: number; y: number }, colours: number[], count: number, size: number) {
+    const shots = [];
+    for (let i = 0; i < count; i++) {
+      const dot = this.add.circle(from.x, from.y, size, colours[i % colours.length]);
+      shots.push(
+        this.tween({
+          targets: dot,
+          x: to.x + Phaser.Math.Between(-10, 10),
+          y: to.y + Phaser.Math.Between(-10, 10),
+          duration: 320,
+          delay: i * 45,
+        }).then(() => dot.destroy()),
+      );
+    }
+    await Promise.all(shots);
   }
 
   /** A jagged yellow lightning bolt from (x, top) down to (x, bottom). */
@@ -195,6 +368,21 @@ export class BattleScene extends Phaser.Scene {
     return g;
   }
 
+  private sparkle(x: number, y: number) {
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const star = this.add.star(x, y, 4, 2, 5, 0xf8d030);
+      this.tweens.add({
+        targets: star,
+        x: x + Math.cos(angle) * 30,
+        y: y + Math.sin(angle) * 30,
+        alpha: 0,
+        duration: 500,
+        onComplete: () => star.destroy(),
+      });
+    }
+  }
+
   private async faint(fighter: Fighter) {
     fighter.sprite.anims.stop();
     await this.tween({ targets: fighter.sprite, y: fighter.sprite.y + 30, alpha: 0, duration: 400 });
@@ -205,7 +393,7 @@ export class BattleScene extends Phaser.Scene {
     const colour = ratio > 0.5 ? 0x40c040 : ratio > 0.2 ? 0xf8c000 : 0xe03828;
     fighter.bar.setFillStyle(colour);
     fighter.hpText.setText(`${fighter.hp}/${fighter.maxHp}`);
-    const width = Math.max(0, fighter.barWidth * ratio);
+    const width = Math.max(0, BAR_WIDTH * ratio);
     if (!animate) {
       fighter.bar.width = width;
       return Promise.resolve();
@@ -215,13 +403,42 @@ export class BattleScene extends Phaser.Scene {
 
   // ---------- Menus and messages ----------
 
-  private menu(items: string[], columns: number, x: number, y: number, colWidth: number): Promise<number> {
+  /** Full-screen list of your team. Resolves with the chosen index, or -1 for BACK. */
+  private async chooseTeamMember(canGoBack: boolean): Promise<number> {
+    const panel = this.add.container(0, 0);
+    panel.add(this.add.rectangle(0, 0, VIEW_WIDTH, VIEW_HEIGHT, 0xf8f8f0).setOrigin(0).setStrokeStyle(4, 0x485890));
+    panel.add(this.add.text(VIEW_WIDTH / 2, 8, 'Choose a POKEMON', { ...TEXT, fontSize: '12px', fontStyle: 'bold' }).setOrigin(0.5, 0));
+
+    const labels: string[] = [];
+    const disabled: boolean[] = [];
+    this.team.forEach((member, i) => {
+      const species = SPECIES[member.species];
+      const status = member.hp <= 0 ? 'FAINTED' : i === this.activeIndex ? 'IN BATTLE' : '';
+      labels.push(`${species.name.padEnd(11)} HP ${String(member.hp).padStart(2)}/${species.maxHp}  ${status}`);
+      disabled.push(member.hp <= 0 || i === this.activeIndex);
+      panel.add(this.add.image(36, 38 + i * 26, member.species, 0).setAlpha(member.hp > 0 ? 1 : 0.4));
+    });
+    if (canGoBack) {
+      labels.push('BACK');
+      disabled.push(false);
+    }
+
+    const pick = await this.menu(labels, { columns: 1, x: 50, y: 32, rowHeight: 26, disabled });
+    panel.destroy();
+    return pick < this.team.length ? pick : -1;
+  }
+
+  private menu(items: string[], options: MenuOptions): Promise<number> {
+    const { columns, x, y, colWidth = 0, rowHeight = 18, disabled = [] } = options;
     this.clearMenu();
     this.menuItems = items.map((label, i) =>
-      this.add.text(x + (i % columns) * colWidth, y + Math.floor(i / columns) * 18, label, { ...TEXT, fontSize: '11px' }),
+      this.add
+        .text(x + (i % columns) * colWidth, y + Math.floor(i / columns) * rowHeight, label, { ...TEXT, fontSize: '11px' })
+        .setAlpha(disabled[i] ? 0.45 : 1),
     );
     this.menuColumns = columns;
-    this.menuChoice = 0;
+    this.menuDisabled = disabled;
+    this.menuChoice = Math.max(0, disabled.findIndex((d) => !d));
     this.highlightMenu();
     return new Promise((resolve) => {
       this.onMenuPick = (index) => {
@@ -242,7 +459,7 @@ export class BattleScene extends Phaser.Scene {
       case 'ArrowDown': this.menuChoice = (this.menuChoice + cols) % n; break;
       case 'Space':
       case 'Enter':
-        this.onMenuPick(this.menuChoice);
+        if (!this.menuDisabled[this.menuChoice]) this.onMenuPick(this.menuChoice);
         return;
       default:
         return;
@@ -276,5 +493,18 @@ export class BattleScene extends Phaser.Scene {
 
   private tween(config: Phaser.Types.Tweens.TweenBuilderConfig) {
     return new Promise<void>((resolve) => this.tweens.add({ ...config, onComplete: () => resolve() }));
+  }
+
+  /** Runs `step` with t going from 0 to 1 over `duration` ms. */
+  private counter(duration: number, step: (t: number) => void) {
+    return new Promise<void>((resolve) =>
+      this.tweens.addCounter({
+        from: 0,
+        to: 1,
+        duration,
+        onUpdate: (tween) => step(tween.getValue() ?? 0),
+        onComplete: () => resolve(),
+      }),
+    );
   }
 }

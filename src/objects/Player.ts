@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { fitBodyToArt } from '../art/textures';
+import type { SpeciesId } from '../pokemon/species';
 
 const RUN_ACCEL = 700;
 const MAX_RUN = 130;
@@ -16,16 +18,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     cursors: Phaser.Types.Input.Keyboard.CursorKeys;
     space: Phaser.Input.Keyboard.Key;
   };
+  private species: SpeciesId;
   private lastGroundedAt = 0;
   private jumpPressedAt = -Infinity;
   frozen = false;
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
-    super(scene, x, y, 'pikachu', 0);
+  constructor(scene: Phaser.Scene, x: number, y: number, species: SpeciesId) {
+    super(scene, x, y, species, 0);
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    this.body.setSize(10, 14).setOffset(2, 2);
+    this.species = species;
+    fitBodyToArt(this.body, species, 3);
     this.body.setMaxVelocity(MAX_RUN, 500);
     this.setDepth(10);
 
@@ -34,6 +38,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       cursors: keyboard.createCursorKeys(),
       space: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
     };
+  }
+
+  /** Turns into a different Pokémon from the team. */
+  setSpecies(species: SpeciesId) {
+    this.species = species;
+    this.setTexture(species, 0);
+    fitBodyToArt(this.body, species, 3);
+    this.anims.play(`${species}-idle`);
   }
 
   update(time: number) {
@@ -71,8 +83,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     // Animation
-    if (!onGround) this.anims.play('pika-jump', true);
-    else if (Math.abs(this.body.velocity.x) > 10) this.anims.play('pika-walk', true);
-    else this.anims.play('pika-idle', true);
+    const id = this.species;
+    if (!onGround) this.anims.play(`${id}-jump`, true);
+    else if (Math.abs(this.body.velocity.x) > 10) this.anims.play(`${id}-walk`, true);
+    else this.anims.play(`${id}-idle`, true);
   }
 }
