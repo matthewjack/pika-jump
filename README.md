@@ -4,6 +4,10 @@ A Mario-style platformer with Pokémon, built with [Phaser 4](https://phaser.io)
 
 ## Play
 
+**Play it in your browser: https://matthewjack.github.io/pika-jump/**
+
+Or run it locally:
+
 ```sh
 npm install
 npm run dev
