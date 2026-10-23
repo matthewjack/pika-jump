@@ -32,7 +32,7 @@ Each prompt below is quoted **exactly as given**, including speech-to-text slips
 
 | The first playable level | Reaching the flag |
 |---|---|
-| ![Pikachu at the start of the first level, with Poké Balls and "?" blocks](docs/images/2-starter-level.png) | ![The "YOU DID IT!" win screen at the goal flag](docs/images/2-win-screen.png) |
+| ![Pikachu at the start of the first level, with Poké Balls and "?" blocks](https://raw.githubusercontent.com/matthewjack/pika-jump/main/docs/images/2-starter-level.png) | ![The "YOU DID IT!" win screen at the goal flag](https://raw.githubusercontent.com/matthewjack/pika-jump/main/docs/images/2-win-screen.png) |
 
 ## Prompt 3: battles (child)
 
@@ -42,7 +42,7 @@ Each prompt below is quoted **exactly as given**, including speech-to-text slips
 
 | Choosing a move | Thunderbolt! |
 |---|---|
-| ![Battle against a Rattata, choosing between Thunderbolt (10), Thunder Shock (6) and Quick Attack (5)](docs/images/3-battle-moves.png) | ![A lightning bolt striking the Rattata: "PIKACHU used THUNDERBOLT!"](docs/images/3-thunderbolt.png) |
+| ![Battle against a Rattata, choosing between Thunderbolt (10), Thunder Shock (6) and Quick Attack (5)](https://raw.githubusercontent.com/matthewjack/pika-jump/main/docs/images/3-battle-moves.png) | ![A lightning bolt striking the Rattata: "PIKACHU used THUNDERBOLT!"](https://raw.githubusercontent.com/matthewjack/pika-jump/main/docs/images/3-thunderbolt.png) |
 
 ## Prompt 4: checking the AI's work (uncle)
 
@@ -68,9 +68,9 @@ When a Pokémon faints you pick the next one. Testing showed Caterpie was nearly
 
 | The new forest | The new battle menu |
 |---|---|
-| ![Pikachu in the forest background with trees, bushes and grass](docs/images/5-forest.png) | ![Battling a wild Caterpie: FIGHT, BALL x5, POKEMON, RUN](docs/images/5-battle-menu.png) |
+| ![Pikachu in the forest background with trees, bushes and grass](https://raw.githubusercontent.com/matthewjack/pika-jump/main/docs/images/5-forest.png) | ![Battling a wild Caterpie: FIGHT, BALL x5, POKEMON, RUN](https://raw.githubusercontent.com/matthewjack/pika-jump/main/docs/images/5-battle-menu.png) |
 | **Gotcha!** | **Playing as the caught Caterpie** |
-| ![The Poké Ball sparkling after a catch: "Gotcha! CATERPIE was caught!"](docs/images/5-gotcha.png) | ![Caterpie in the level, with Pikachu and Caterpie team icons and "S = SWITCH"](docs/images/5-playing-as-caterpie.png) |
+| ![The Poké Ball sparkling after a catch: "Gotcha! CATERPIE was caught!"](https://raw.githubusercontent.com/matthewjack/pika-jump/main/docs/images/5-gotcha.png) | ![Caterpie in the level, with Pikachu and Caterpie team icons and "S = SWITCH"](https://raw.githubusercontent.com/matthewjack/pika-jump/main/docs/images/5-playing-as-caterpie.png) |
 
 ## Prompt 6: how to edit levels (uncle)
 
@@ -86,7 +86,7 @@ When a Pokémon faints you pick the next one. Testing showed Caterpie was nearly
 
 | Before the child's edit | After: a Rattata and a Squirtle waiting near the start |
 |---|---|
-| ![The start of the level before the edit, with no Pokémon in sight](docs/images/7-level-before.png) | ![The start of the level after the edit, with a Rattata and a Squirtle just ahead of Pikachu](docs/images/7-level-after.png) |
+| ![The start of the level before the edit, with no Pokémon in sight](https://raw.githubusercontent.com/matthewjack/pika-jump/main/docs/images/7-level-before.png) | ![The start of the level after the edit, with a Rattata and a Squirtle just ahead of Pikachu](https://raw.githubusercontent.com/matthewjack/pika-jump/main/docs/images/7-level-after.png) |
 
 ## Prompt 8: evolution (child)
 
@@ -101,7 +101,7 @@ Evolution plays the classic "What? PIKACHU is evolving!" flicker. The AI deliber
 
 | "What? PIKACHU is evolving!" |
 |---|
-| ![Animation: Pikachu flickers between Pikachu and Raichu, then "Congratulations! PIKACHU evolved into RAICHU!"](docs/images/8-evolution.gif) |
+| ![Animation: Pikachu flickers between Pikachu and Raichu, then "Congratulations! PIKACHU evolved into RAICHU!"](https://raw.githubusercontent.com/matthewjack/pika-jump/main/docs/images/8-evolution.gif) |
 
 ---
 
