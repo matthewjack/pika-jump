@@ -40,7 +40,9 @@ Each prompt below is quoted **exactly as given**, including speech-to-text slips
 
 **Result:** touching a Rattata now starts a classic turn-based battle screen with HP bars, a FIGHT/RUN menu, and Thunderbolt (10 damage, as requested), Thunder Shock and Quick Attack, each with its own animation. The AI made sensible guesses where the child didn't say: Rattata's HP and attacks, that Poké Balls heal 1 HP, and that losing a battle costs a life. Its self-testing found a real bug: after running away, the same Rattata could start a new battle straight away. It fixed that.
 
-![Battle against a Rattata, choosing between Thunderbolt (10), Thunder Shock (6) and Quick Attack (5)](docs/images/3-battle-moves.png)
+| Choosing a move | Thunderbolt! |
+|---|---|
+| ![Battle against a Rattata, choosing between Thunderbolt (10), Thunder Shock (6) and Quick Attack (5)](docs/images/3-battle-moves.png) | ![A lightning bolt striking the Rattata: "PIKACHU used THUNDERBOLT!"](docs/images/3-thunderbolt.png) |
 
 ## Prompt 4: checking the AI's work (uncle)
 
@@ -67,8 +69,8 @@ When a Pokémon faints you pick the next one. Testing showed Caterpie was nearly
 | The new forest | The new battle menu |
 |---|---|
 | ![Pikachu in the forest background with trees, bushes and grass](docs/images/5-forest.png) | ![Battling a wild Caterpie: FIGHT, BALL x5, POKEMON, RUN](docs/images/5-battle-menu.png) |
-| **Throwing a Poké Ball** | **Playing as the caught Caterpie** |
-| ![A Poké Ball landing where the Caterpie was](docs/images/5-ball-throw.png) | ![Caterpie in the level, with Pikachu and Caterpie team icons and "S = SWITCH"](docs/images/5-playing-as-caterpie.png) |
+| **Gotcha!** | **Playing as the caught Caterpie** |
+| ![The Poké Ball sparkling after a catch: "Gotcha! CATERPIE was caught!"](docs/images/5-gotcha.png) | ![Caterpie in the level, with Pikachu and Caterpie team icons and "S = SWITCH"](docs/images/5-playing-as-caterpie.png) |
 
 ## Prompt 6: how to edit levels (uncle)
 
@@ -82,7 +84,9 @@ When a Pokémon faints you pick the next one. Testing showed Caterpie was nearly
 
 **Result:** with the file open, **the child edited the level by hand**, adding a Rattata, a Squirtle and a random Pokémon near the start. The AI later noticed the edit, checked it hadn't misaligned anything, and kept it as the child's own change.
 
-![The start of the level after the child's edit: a Rattata and a Squirtle waiting just ahead of Pikachu](docs/images/7-child-level-edit.png)
+| Before the child's edit | After: a Rattata and a Squirtle waiting near the start |
+|---|---|
+| ![The start of the level before the edit, with no Pokémon in sight](docs/images/7-level-before.png) | ![The start of the level after the edit, with a Rattata and a Squirtle just ahead of Pikachu](docs/images/7-level-after.png) |
 
 ## Prompt 8: evolution (child)
 
@@ -97,7 +101,7 @@ Evolution plays the classic "What? PIKACHU is evolving!" flicker. The AI deliber
 
 | "What? PIKACHU is evolving!" |
 |---|
-| ![Pikachu at Lv10 starts evolving, with the new blue XP bar](docs/images/8-evolving.png) |
+| ![Animation: Pikachu flickers between Pikachu and Raichu, then "Congratulations! PIKACHU evolved into RAICHU!"](docs/images/8-evolution.gif) |
 
 ---
 
